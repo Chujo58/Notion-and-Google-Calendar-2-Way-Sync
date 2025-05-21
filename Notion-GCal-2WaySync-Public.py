@@ -9,7 +9,7 @@ import logging
 
 # SET UP THE LOGGING
 logging.basicConfig(
-    filename="sync.log",
+    filename="C:/Users/chloe/Documents/Notion-and-Google-Calendar-2-Way-Sync/sync.log",
     level=logging.DEBUG,
     format="%(asctime)s - %(levelname)s - %(message)s",
 )
@@ -89,7 +89,7 @@ calendarDictionary = {
 
 
 ## doesn't delete the Notion task (yet), I'm waiting for the Python API to be updated to allow deleting tasks
-DELETE_OPTION = 0
+DELETE_OPTION = 1
 # set at 0 if you want the delete column being checked off to mean that the gCal event and the Notion Event will be checked off.
 # set at 1 if you want nothing deleted
 
