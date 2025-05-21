@@ -5,6 +5,17 @@ from googleapiclient.discovery import build
 from google_auth_oauthlib.flow import InstalledAppFlow
 import pickle
 
+import logging
+
+# SET UP THE LOGGING
+logging.basicConfig(
+    filename="sync.log",
+    level=logging.DEBUG,
+    format="%(asctime)s - %(levelname)s - %(message)s",
+)
+logger = logging.getLogger(__name__)
+
+logger.info("Starting Sync")
 
 ###########################################################################
 ##### The Set-Up Section. Please follow the comments to understand the code.
@@ -63,7 +74,7 @@ AllDayEventOption = (
 
 DEFAULT_CALENDAR_ID = "b3c903b1ee4cc103e02c7de57b397bd3f0afedd8077555d8242af43061729641@group.calendar.google.com"  # The GCal calendar id. The format is something like "sldkjfliksedjgodsfhgshglsj@group.calendar.google.com"
 
-DEFAULT_CALENDAR_NAME = "Tutorial Cal 1"
+DEFAULT_CALENDAR_NAME = "Other things"
 
 
 # leave the first entry as is
@@ -71,6 +82,7 @@ DEFAULT_CALENDAR_NAME = "Tutorial Cal 1"
 calendarDictionary = {
     DEFAULT_CALENDAR_NAME: DEFAULT_CALENDAR_ID,
     "Research": "b7a52282f7a24e40065189a7382c1140018cc3b4d2d01813daa9218af3411937@group.calendar.google.com",
+    # "Old cal": "chloelegue@gmail.com",
     # 'Test' : 'fd34893uklhjdflgkjsdafdfjklsd@group.calendar.google.com', #just typed some random ids but put the one for your calendars here
     # 'New Test' : 'skdhvjhefoierjkh345378khkh@group.calendar.google.com'
 }
@@ -92,13 +104,13 @@ DELETE_OPTION = 0
 
 Task_Notion_Name = "Task Name"
 Date_Notion_Name = "Due Date"
-Initiative_Notion_Name = "Courses"  # Class type
+Initiative_Notion_Name = "CalendarName"  # Class type
 ExtraInfo_Notion_Name = "Description"  # Description stuff
 On_GCal_Notion_Name = "On GCal?"  # Checkbox
 NeedGCalUpdate_Notion_Name = "NeedGCalUpdate"  # Formula
 GCalEventId_Notion_Name = "Event ID"  # Event id attribute
 LastUpdatedTime_Notion_Name = "Last Updated Time"  # Date
-Calendar_Notion_Name = "Courses"  # drop down for the calendar name?
+Calendar_Notion_Name = "CalendarName"  # drop down for the calendar name?
 Current_Calendar_Id_Notion_Name = "Calendar ID"  # Text
 Delete_Notion_Name = "Done?"  # check box
 
@@ -301,9 +313,9 @@ def makeCalEvent(
                 "url": sourceURL,
             },
         }
-    print("Adding this event to calendar: ", eventName)
 
-    print(event)
+    logger.info(f"Adding this event to calendar: {eventName}")
+
     x = service.events().insert(calendarId=calId, body=event).execute()
     return x["id"]
 
@@ -441,7 +453,7 @@ def upDateCalEvent(
                 "url": sourceURL,
             },
         }
-    print("Updating this event to calendar: ", eventName)
+    logger.info(f"Updating this event to calendar: {eventName}")
 
     if currentCalId == CalId:
         x = (
@@ -451,15 +463,16 @@ def upDateCalEvent(
         )
 
     else:  # When we have to move the event to a new calendar. We must move the event over to the new calendar and then update the information on the event
-        print("Event " + eventId)
-        print("CurrentCal " + currentCalId)
-        print("NewCal " + CalId)
+        logger.info(
+            f"Moving this event to new calendar: {eventName}\nCurrent Calendar: {currentCalId}\nNew Calendar: {CalId}"
+        )
+
         x = (
             service.events()
             .move(calendarId=currentCalId, eventId=eventId, destination=CalId)
             .execute()
         )
-        print("New event id: " + x["id"])
+        logger.info(f"New event id: {x['id']}")
         x = (
             service.events()
             .update(calendarId=CalId, eventId=eventId, body=event)
@@ -499,12 +512,11 @@ my_page = notion.databases.query(  # this query will return a dictionary that we
 )
 resultList = my_page["results"]
 
-# print(len(resultList))
 
 try:
-    print(resultList[0])
+    logger.debug(resultList[0])
 except:
-    print("")
+    logger.debug("")
 
 TaskNames = []
 start_Dates = []
@@ -518,9 +530,7 @@ CalendarList = []
 if len(resultList) > 0:
 
     for i, el in enumerate(resultList):
-        print("\n")
-        print(el)
-        print("\n")
+        logger.debug(el)
 
         TaskNames.append(
             el["properties"][Task_Notion_Name]["title"][0]["text"]["content"]
@@ -534,7 +544,7 @@ if len(resultList) > 0:
 
         try:
             Initiatives.append(
-                el["properties"][Initiative_Notion_Name]["select"]["name"]
+                el["properties"][Initiative_Notion_Name]["formula"]["string"]
             )
         except:
             Initiatives.append("")
@@ -552,7 +562,7 @@ if len(resultList) > 0:
         try:
             CalendarList.append(
                 calendarDictionary[
-                    el["properties"][Calendar_Notion_Name]["select"]["name"]
+                    el["properties"][Calendar_Notion_Name]["formula"]["string"]
                 ]
             )
         except:  # keyerror occurs when there's nothing put into the calendar in the first place
@@ -573,7 +583,7 @@ if len(resultList) > 0:
                 },
             },
         )
-        print(CalendarList)
+        logger.debug(CalendarList)
 
         # 2 Cases: Start and End are  both either date or date+time #Have restriction that the calendar events don't cross days
         try:
@@ -645,7 +655,7 @@ if len(resultList) > 0:
 
 
 else:
-    print("Nothing new added to GCal")
+    logger.info("Nothing new added to GCal")
 
 
 ###########################################################################
@@ -660,7 +670,10 @@ my_page = notion.databases.query(
         "database_id": database_id,
         "filter": {
             "and": [
-                {"property": Calendar_Notion_Name, "select": {"is_empty": True}},
+                {
+                    "property": Calendar_Notion_Name,
+                    "formula": {"text": {"is_empty": True}},
+                },
                 {
                     "or": [
                         {"property": Date_Notion_Name, "date": {"equals": todayDate}},
@@ -724,20 +737,17 @@ updatingNotionPageIds = []
 updatingCalEventIds = []
 
 for result in resultList:
-    print(result)
-    print("\n")
+    logger.debug(result)
     pageId = result["id"]
     updatingNotionPageIds.append(pageId)
-    print("\n")
-    print(result)
-    print("\n")
+
     try:
         calId = result["properties"][GCalEventId_Notion_Name]["rich_text"][0]["text"][
             "content"
         ]
     except:
         calId = DEFAULT_CALENDAR_ID
-    print(calId)
+    logger.debug(calId)
     updatingCalEventIds.append(calId)
 
 TaskNames = []
@@ -752,9 +762,7 @@ CurrentCalList = []
 if len(resultList) > 0:
 
     for i, el in enumerate(resultList):
-        print("\n")
-        print(el)
-        print("\n")
+        logger.debug(el)
 
         TaskNames.append(
             el["properties"][Task_Notion_Name]["title"][0]["text"]["content"]
@@ -768,7 +776,7 @@ if len(resultList) > 0:
 
         try:
             Initiatives.append(
-                el["properties"][Initiative_Notion_Name]["select"]["name"]
+                el["properties"][Initiative_Notion_Name]["formula"]["string"]
             )
         except:
             Initiatives.append("")
@@ -783,12 +791,11 @@ if len(resultList) > 0:
             ExtraInfo.append("")
         URL_list.append(makeTaskURL(el["id"], urlRoot))
 
-        print(el)
         # CalendarList.append(calendarDictionary[el['properties'][Calendar_Notion_Name]['select']['name']])
         try:
             CalendarList.append(
                 calendarDictionary[
-                    el["properties"][Calendar_Notion_Name]["select"]["name"]
+                    el["properties"][Calendar_Notion_Name]["formula"]["string"]
                 ]
             )
         except:  # keyerror occurs when there's nothing put into the calendar in the first place
@@ -857,7 +864,7 @@ if len(resultList) > 0:
 
 
 else:
-    print("Nothing new updated to GCal")
+    logger.info("Nothing new updated to GCal")
 
 
 todayDate = datetime.today().strftime("%Y-%m-%d")
@@ -911,6 +918,7 @@ gCal_CalIds = []
 
 for result in resultList:
     notion_IDs_List.append(result["id"])
+
     notion_start_datetimes.append(
         result["properties"][Date_Notion_Name]["date"]["start"]
     )
@@ -921,16 +929,16 @@ for result in resultList:
     try:
         notion_gCal_CalIds.append(
             calendarDictionary[
-                result["properties"][Calendar_Notion_Name]["select"]["name"]
+                result["properties"][Calendar_Notion_Name]["formula"]["string"]
             ]
         )
         notion_gCal_CalNames.append(
-            result["properties"][Calendar_Notion_Name]["select"]["name"]
+            result["properties"][Calendar_Notion_Name]["formula"]["string"]
         )
     except:  # keyerror occurs when there's nothing put into the calendar in the first place
         notion_gCal_CalIds.append(calendarDictionary[DEFAULT_CALENDAR_NAME])
         notion_gCal_CalNames.append(
-            result["properties"][Calendar_Notion_Name]["select"]["name"]
+            result["properties"][Calendar_Notion_Name]["formula"]["string"]
         )
 
 
@@ -981,7 +989,7 @@ for gCalId in notion_gCal_IDs:
     ) in (
         calendarDictionary.keys()
     ):  # just check all of the calendars of interest for info about the event
-        print("Trying " + calendarID + " for " + gCalId)
+        logger.debug(f"Trying {calendarID} for {gCalId}")
         try:
             x = (
                 service.events()
@@ -989,7 +997,7 @@ for gCalId in notion_gCal_IDs:
                 .execute()
             )
         except:
-            print("Event not found")
+            logger.error("Event not found")
             x = {"status": "unconfirmed"}
         if x["status"] == "confirmed":
             gCal_CalIds.append(calendarID)
@@ -997,8 +1005,7 @@ for gCalId in notion_gCal_IDs:
         else:
             continue
 
-    print(value)
-    print("\n")
+    logger.debug(value)
     try:
         gCal_start_datetimes.append(
             datetime.strptime(value["start"]["dateTime"][:-6], "%Y-%m-%dT%H:%M:%S")
@@ -1034,12 +1041,13 @@ for i in range(len(new_notion_start_datetimes)):
     ):  # this means that there is no end time in notion
         new_notion_end_datetimes[i] = gCal_end_datetimes[i]
 
-print("test")
-print(new_notion_start_datetimes)
-print(new_notion_end_datetimes)
-print("\n")
+logger.debug(f"New Notion Start times: {new_notion_start_datetimes}")
+logger.debug(f"New Notion Stop times: {new_notion_end_datetimes}")
+
 for i in range(len(notion_gCal_IDs)):
-    print(notion_start_datetimes[i], gCal_start_datetimes[i], notion_gCal_IDs[i])
+    logger.debug(
+        f"{notion_start_datetimes[i]} {gCal_start_datetimes[i]} {notion_gCal_IDs[i]}"
+    )
 
 
 for i in range(len(new_notion_start_datetimes)):
@@ -1252,9 +1260,8 @@ for i in range(len(new_notion_start_datetimes)):
     else:  # nothing needs to be updated here
         continue
 
-print(notion_IDs_List)
-print("\n")
-print(gCal_CalIds)
+logger.debug(notion_IDs_List)
+logger.debug(gCal_CalIds)
 
 CalNames = list(calendarDictionary.keys())
 CalIds = list(calendarDictionary.values())
@@ -1262,7 +1269,8 @@ CalIds = list(calendarDictionary.values())
 for i, gCalId in enumerate(
     gCal_CalIds
 ):  # instead of checking, just update the notion datebase with whatever calendar the event is on
-    print("GcalId: " + gCalId)
+    logger.debug(f"GcalId: {gCalId}")
+    logger.debug(notion_IDs_List[i])
     my_page = notion.pages.update(  ##### This puts the the GCal Id into the Notion Dashboard
         **{
             "page_id": notion_IDs_List[i],
@@ -1332,7 +1340,7 @@ for (
     )
     events.extend(x["items"])
 
-print(events)
+logger.debug(events)
 
 # calItems = events['items']
 calItems = events
@@ -1552,7 +1560,7 @@ for i in range(len(calIds)):
                 },
             )
 
-        print(f"Added this event to Notion: {calName[i]}")
+        logger.info(f"Added this event to Notion: {calName[i]}")
 
 
 ###########################################################################
@@ -1583,7 +1591,7 @@ if (
 
     for i, el in enumerate(resultList):
         calendarID = calendarDictionary[
-            el["properties"][Calendar_Notion_Name]["select"]["name"]
+            el["properties"][Calendar_Notion_Name]["formula"]["string"]
         ]
         eventId = el["properties"][GCalEventId_Notion_Name]["rich_text"][0]["text"][
             "content"
@@ -1591,7 +1599,7 @@ if (
 
         pageId = el["id"]
 
-        print(calendarID, eventId)
+        logger.debug(f"{calendarID} {eventId}")
 
         try:
             service.events().delete(calendarId=calendarID, eventId=eventId).execute()
@@ -1602,4 +1610,4 @@ if (
             **{"page_id": pageId, "archived": True, "properties": {}},
         )
 
-        print(my_page)
+        logger.debug(my_page)
