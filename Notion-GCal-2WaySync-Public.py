@@ -32,7 +32,7 @@ runScript = "python C:/Users/chloe/Documents/Notion-and-Google-Calendar-2-Way-Sy
 
 # GCal Set Up Part
 
-credentialsLocation = "token.pkl"  # This is where you keep the pickle file that has the Google Calendar Credentials
+credentialsLocation = "C:/Users/chloe/Documents/Notion-and-Google-Calendar-2-Way-Sync/token.pkl"  # This is where you keep the pickle file that has the Google Calendar Credentials
 
 
 DEFAULT_EVENT_LENGTH = 60  # This is how many minutes the default event length is. Feel free to change it as you please
