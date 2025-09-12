@@ -9,7 +9,9 @@ import logging
 
 # SET UP THE LOGGING
 logging.basicConfig(
-    filename="C:/Users/chloe/Documents/Notion-and-Google-Calendar-2-Way-Sync/sync.log",
+    filename=os.path.expanduser(
+        "~/Documents/Notion-and-Google-Calendar-2-Way-Sync/sync.log"
+    ),
     level=logging.DEBUG,
     format="%(asctime)s - %(levelname)s - %(message)s",
 )
@@ -28,11 +30,15 @@ database_id = "235f5aaf73f44d15a7faa2f9a2bd8ff7"  # get the mess of numbers befo
 
 urlRoot = "https://www.notion.so/235f5aaf73f44d15a7faa2f9a2bd8ff7?v=849eba754d11487892c5b22c9d22281a&p="  # open up a task and then copy the URL root up to the "p="
 
-runScript = "python C:/Users/chloe/Documents/Notion-and-Google-Calendar-2-Way-Sync/GCalToken.py"  # This is the command you will be feeding into the command prompt to run the GCalToken program
+script = os.path.expanduser(
+    "~/Documents/Notion-and-Google-Calendar-2-Way-Sync/GCalToken.py"
+)
+runScript = f"python {script}"  # This is the command you will be feeding into the command prompt to run the GCalToken program
 
 # GCal Set Up Part
-
-credentialsLocation = "C:/Users/chloe/Documents/Notion-and-Google-Calendar-2-Way-Sync/token.pkl"  # This is where you keep the pickle file that has the Google Calendar Credentials
+credentialsLocation = os.path.expanduser(
+    "~/Documents/Notion-and-Google-Calendar-2-Way-Sync/token.pkl"
+)  # This is where you keep the pickle file that has the Google Calendar Credentials
 
 
 DEFAULT_EVENT_LENGTH = 60  # This is how many minutes the default event length is. Feel free to change it as you please
