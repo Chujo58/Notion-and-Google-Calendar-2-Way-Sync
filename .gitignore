@@ -7,3 +7,4 @@ venv/
 client_secret.json
 token.pkl
 sync.log
+notion_token.txt

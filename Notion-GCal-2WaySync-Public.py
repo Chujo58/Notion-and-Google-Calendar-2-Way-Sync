@@ -1,4 +1,4 @@
-import os
+import os, time
 from notion_client import Client
 from datetime import datetime, timedelta, date
 from googleapiclient.discovery import build
@@ -9,9 +9,7 @@ import logging
 
 # SET UP THE LOGGING
 logging.basicConfig(
-    filename=os.path.expanduser(
-        "~/Documents/Notion-and-Google-Calendar-2-Way-Sync/sync.log"
-    ),
+    filename=f"{os.getcwd()}/sync.log",
     level=logging.DEBUG,
     format="%(asctime)s - %(levelname)s - %(message)s",
 )
@@ -19,27 +17,28 @@ logger = logging.getLogger(__name__)
 
 logger.info("Starting Sync")
 
+print_wifi_e = lambda: print("Network error. Please check your internet connection.")
+
 ###########################################################################
 ##### The Set-Up Section. Please follow the comments to understand the code.
 ###########################################################################
 
 
-NOTION_TOKEN = "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"  # the secret_something from Notion Integration
+# NOTION_TOKEN = "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"  # the secret_something from Notion Integration
+NOTION_TOKEN = open(f"{os.getcwd()}/notion_token.txt", "r").read().strip()
 
 database_id = "235f5aaf73f44d15a7faa2f9a2bd8ff7"  # get the mess of numbers before the "?" on your dashboard URL (no need to split into dashes)
 
-urlRoot = "https://www.notion.so/235f5aaf73f44d15a7faa2f9a2bd8ff7?v=849eba754d11487892c5b22c9d22281a&p="  # open up a task and then copy the URL root up to the "p="
-
-script = os.path.expanduser(
-    "~/Documents/Notion-and-Google-Calendar-2-Way-Sync/GCalToken.py"
-)
-runScript = f"python {script}"  # This is the command you will be feeding into the command prompt to run the GCalToken program
+# urlRoot = "https://www.notion.so/235f5aaf73f44d15a7faa2f9a2bd8ff7?v=849eba754d11487892c5b22c9d22281a&p="  # open up a task and then copy the URL root up to the "p="
+# urlRoot = "https://www.notion.so/235f5aaf73f44d15a7faa2f9a2bd8ff7?v=0ed18a2f870c4d6d9855d639b497eade&p="
+urlRoot = "https://www.notion.so/235f5aaf73f44d15a7faa2f9a2bd8ff7?v=849eba754d11487892c5b22c9d22281a&p="
+runTokenScript = f"python {os.getcwd()}/GCalToken.py"
+runScript = f"python {os.getcwd()}/Notion-GCal-2WaySync-Public.py"
+# runScript = "python C:/Users/chloe/Documents/Notion-and-Google-Calendar-2-Way-Sync/GCalToken.py"  # This is the command you will be feeding into the command prompt to run the GCalToken program
 
 # GCal Set Up Part
-credentialsLocation = os.path.expanduser(
-    "~/Documents/Notion-and-Google-Calendar-2-Way-Sync/token.pkl"
-)  # This is where you keep the pickle file that has the Google Calendar Credentials
-
+# credentialsLocation = "C:/Users/chloe/Documents/Notion-and-Google-Calendar-2-Way-Sync/token.pkl"  # This is where you keep the pickle file that has the Google Calendar Credentials
+credentialsLocation = f"{os.getcwd()}/token.pkl"  # This is where you keep the pickle file that has the Google Calendar Credentials
 
 DEFAULT_EVENT_LENGTH = 60  # This is how many minutes the default event length is. Feel free to change it as you please
 timezone = "America/New_York"  # Choose your respective time zone: http://www.timezoneconverter.com/cgi-bin/zonehelp.tzc
@@ -88,6 +87,11 @@ DEFAULT_CALENDAR_NAME = "Other things"
 calendarDictionary = {
     DEFAULT_CALENDAR_NAME: DEFAULT_CALENDAR_ID,
     "Research": "b7a52282f7a24e40065189a7382c1140018cc3b4d2d01813daa9218af3411937@group.calendar.google.com",
+    "Applications": "52e31ddbbaaaccb9491f6c0e0f497364dec8499037845e3e2b8011209721cb71@group.calendar.google.com",
+    "CLAS 201": "83de1afa1f407b2f9b012cc57cf9836ef7af8531ac4fe4e1bbaef3c2d65e39f1@group.calendar.google.com",
+    "COMP 350": "69a7424a3f5e706d6af37b7d7e735a02642eff817c162299e0f79b400b37bdab@group.calendar.google.com",
+    "PHYS 320": "9e9fd606ec20eeb7b09a24df316b004c8fe15021a60057ba940c9a935ad29588@group.calendar.google.com",
+    "PHYS 449": "176c0a4bf2f0f39ab5def7d53363d4ac2643b2e6eefe1b1dd9d65ad53c26c96a@group.calendar.google.com",
     # "Old cal": "chloelegue@gmail.com",
     # 'Test' : 'fd34893uklhjdflgkjsdafdfjklsd@group.calendar.google.com', #just typed some random ids but put the one for your calendars here
     # 'New Test' : 'skdhvjhefoierjkh345378khkh@group.calendar.google.com'
@@ -134,23 +138,31 @@ service = build("calendar", "v3", credentials=credentials)
 # There could be a hiccup if the Google Calendar API token expires.
 # If the token expires, the other python script GCalToken.py creates a new token for the program to use
 # This is placed here because it can take a few seconds to start working and I want the most heavy tasks to occur first
-try:
-    calendar = service.calendars().get(calendarId=DEFAULT_CALENDAR_ID).execute()
-except:
-    # refresh the token
-    import os
 
-    os.system(runScript)
+while True:
+    try:
+        calendar = service.calendars().get(calendarId=DEFAULT_CALENDAR_ID).execute()
+        break
+    except OSError as e:
+        if e.errno == 101:
+            print_wifi_e()
+            time.sleep(5)
 
-    # SET UP THE GOOGLE CALENDAR API INTERFACE
+    except:
+        # refresh the token
+        import os
 
-    credentials = pickle.load(open(credentialsLocation, "rb"))
-    service = build("calendar", "v3", credentials=credentials)
+        os.system(runTokenScript)
 
-    # result = service.calendarList().list().execute()
-    # print(result['items'][:])
+        # SET UP THE GOOGLE CALENDAR API INTERFACE
 
-    calendar = service.calendars().get(calendarId=calendarID).execute()
+        credentials = pickle.load(open(credentialsLocation, "rb"))
+        service = build("calendar", "v3", credentials=credentials)
+
+        # result = service.calendarList().list().execute()
+        # print(result['items'][:])
+
+        calendar = service.calendars().get(calendarId=calendarID).execute()
 
 
 ##This is where we set up the connection with the Notion API
@@ -178,7 +190,7 @@ def makeEventDescription(initiative, info):
     elif initiative == "":
         return info
     else:
-        return f"Initiative: {initiative} \n{info}"
+        return f"Folder: {initiative} \n{info}"
 
 
 ######################################################################
@@ -199,6 +211,10 @@ def makeTaskURL(ending, urlRoot):
 def makeCalEvent(
     eventName, eventDescription, eventStartTime, sourceURL, eventEndTime, calId
 ):
+
+    print(
+        f"Making event: {eventName} from {eventStartTime} to {eventEndTime} on calendar {calId}"
+    )
 
     if (
         eventStartTime.hour == 0
@@ -340,7 +356,9 @@ def upDateCalEvent(
     currentCalId,
     CalId,
 ):
-
+    print(
+        f"Updating event: {eventName} from {eventStartTime} to {eventEndTime} on calendar {CalId}"
+    )
     if (
         eventStartTime.hour == 0
         and eventStartTime.minute == 0
@@ -498,24 +516,36 @@ def upDateCalEvent(
 
 
 todayDate = datetime.today().strftime("%Y-%m-%d")
-
-my_page = notion.databases.query(  # this query will return a dictionary that we will parse for information that we want
-    **{
-        "database_id": database_id,
-        "filter": {
-            "and": [
-                {"property": On_GCal_Notion_Name, "checkbox": {"equals": False}},
-                {
-                    "or": [
-                        {"property": Date_Notion_Name, "date": {"equals": todayDate}},
-                        {"property": Date_Notion_Name, "date": {"next_week": {}}},
+while True:
+    try:
+        my_page = notion.databases.query(  # this query will return a dictionary that we will parse for information that we want
+            **{
+                "database_id": database_id,
+                "filter": {
+                    "and": [
+                        {
+                            "property": On_GCal_Notion_Name,
+                            "checkbox": {"equals": False},
+                        },
+                        {
+                            "property": Date_Notion_Name,
+                            "date": {"on_or_after": todayDate},
+                            # "or": [
+                            #     {"property": Date_Notion_Name, "date": {"equals": todayDate}},
+                            #     {"property": Date_Notion_Name, "date": {"next_week": {}}},
+                            # ]
+                        },
+                        {"property": Delete_Notion_Name, "checkbox": {"equals": False}},
                     ]
                 },
-                {"property": Delete_Notion_Name, "checkbox": {"equals": False}},
-            ]
-        },
-    }
-)
+            }
+        )
+        break
+    except Exception as e:
+        if e.errno == 101:
+            print_wifi_e()
+            time.sleep(5)
+
 resultList = my_page["results"]
 
 
@@ -533,9 +563,17 @@ URL_list = []
 calEventIdList = []
 CalendarList = []
 
+logger.debug(f"Number of new events to be added to GCal: {len(resultList)}")
 if len(resultList) > 0:
 
     for i, el in enumerate(resultList):
+        # print(f"Adding new event {i+1} out of {len(resultList)} to GCal")
+        # print(
+        #     "Task Name: "
+        #     + el["properties"][Task_Notion_Name]["title"][0]["text"]["content"]
+        # )
+        # print("Calendar: " + str(el["properties"][Calendar_Notion_Name]))
+        # print("----------------------------------------------")
         logger.debug(el)
 
         TaskNames.append(
@@ -678,7 +716,7 @@ my_page = notion.databases.query(
             "and": [
                 {
                     "property": Calendar_Notion_Name,
-                    "formula": {"text": {"is_empty": True}},
+                    "formula": {"string": {"is_empty": True}},
                 },
                 {
                     "or": [
@@ -1303,25 +1341,38 @@ for i, gCalId in enumerate(
 ###########################################################################
 
 ##First, we get a list of all of the GCal Event Ids from the Notion Dashboard.
+while True:
+    try:
+        my_page = notion.databases.query(
+            **{
+                "database_id": database_id,
+                "filter": {
+                    "and": [
+                        {
+                            "property": GCalEventId_Notion_Name,
+                            "rich_text": {"is_not_empty": True},
+                        },
+                        {"property": Delete_Notion_Name, "checkbox": {"equals": False}},
+                    ]
+                },
+            }
+        )
 
-my_page = notion.databases.query(
-    **{
-        "database_id": database_id,
-        "filter": {
-            "and": [
-                {"property": GCalEventId_Notion_Name, "text": {"is_not_empty": True}},
-                {"property": Delete_Notion_Name, "checkbox": {"equals": False}},
-            ]
-        },
-    }
-)
+        my_page = notion.databases.query(
+            **{
+                "database_id": database_id,
+                "filter": {
+                    "property": GCalEventId_Notion_Name,
+                    "rich_text": {"is_not_empty": True},
+                },
+            }
+        )
+        break
+    except Exception as e:
+        if e.errno == 101:
+            print_wifi_e()
+            time.sleep(5)
 
-my_page = notion.databases.query(
-    **{
-        "database_id": database_id,
-        "filter": {"property": GCalEventId_Notion_Name, "text": {"is_not_empty": True}},
-    }
-)
 
 resultList = my_page["results"]
 
@@ -1404,7 +1455,10 @@ for i in range(len(calIds)):
             days=1
         ):  # only add in the start DATE
             # Here, we create a new page for every new GCal event
+            print("Adding event {calName[i]} to Notion")
+
             end = calEndDates[i] - timedelta(days=1)
+
             my_page = notion.pages.create(
                 **{
                     "parent": {
@@ -1574,18 +1628,29 @@ for i in range(len(calIds)):
 ###########################################################################
 
 
-my_page = notion.databases.query(
-    **{
-        "database_id": database_id,
-        "filter": {
-            "and": [
-                {"property": GCalEventId_Notion_Name, "text": {"is_not_empty": True}},
-                {"property": On_GCal_Notion_Name, "checkbox": {"equals": True}},
-                {"property": Delete_Notion_Name, "checkbox": {"equals": True}},
-            ]
-        },
-    }
-)
+while True:
+    try:
+        my_page = notion.databases.query(
+            **{
+                "database_id": database_id,
+                "filter": {
+                    "and": [
+                        {
+                            "property": GCalEventId_Notion_Name,
+                            "rich_text": {"is_not_empty": True},
+                        },
+                        {"property": On_GCal_Notion_Name, "checkbox": {"equals": True}},
+                        {"property": Delete_Notion_Name, "checkbox": {"equals": True}},
+                    ]
+                },
+            }
+        )
+        break
+    except Exception as e:
+        if e.errno == 101:
+            print_wifi_e()
+            time.sleep(5)
+
 
 resultList = my_page["results"]
 
@@ -1617,3 +1682,5 @@ if (
         )
 
         logger.debug(my_page)
+
+logger.info("Script complete!")
