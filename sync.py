@@ -75,11 +75,11 @@ def makeDescription(folder, notes):
     if folder == "" and notes == "":
         return ""
     elif notes == "":
-        return folder
+        return f"Folder: {folder}"
     elif folder == "":
-        return notes
+        return f"Notes: {notes}"
     else:
-        return f"Folder: {folder}\n{notes}"
+        return f"Folder: {folder}\nNotes: {notes}"
 
 
 def syncNotion2GCal():
@@ -199,12 +199,16 @@ def getEventProperties(event):
 
     # Also get the gcal_event_id:
     gcal_eid = (
-        props[GCalEventId_Notion_Name]["rich_text"][0]["content"]
+        props[GCalEventId_Notion_Name]["rich_text"][0]["plain_text"]
         if props[GCalEventId_Notion_Name]["rich_text"]
         else ""
     )
 
-    gcal_id = props[Current_Calendar_Id_Notion_Name]["rich_text"][0]["content"]
+    gcal_id = (
+        props[Current_Calendar_Id_Notion_Name]["rich_text"][0]["plain_text"]
+        if props[Current_Calendar_Id_Notion_Name]["rich_text"]
+        else ""
+    )
 
     return (
         event_name,
@@ -255,6 +259,9 @@ def verifyNotionForEmptyCalendar():
 
 
 def updatedNotion2GCal():
+    """
+    Part 2: Update GCal events that need to be updated from Notion.
+    """
     today = datetime.today().strftime("%Y-%m-%d")
     filter_obj = {
         "and": [
@@ -321,8 +328,10 @@ def updatedNotion2GCal():
         )
 
 
-def syncGCal2Notion():
-    # Let's grab the events in Notion that don't have updates and are in GCal, we only query those back to GCal to avoid rate limits.
+def syncNotionGCals2Notion():
+    """
+    Part 3: Let's grab the events in Notion that don't have updates and are in GCal, we only query those back to GCal to avoid rate limits.
+    """
 
     today = datetime.today().strftime("%Y-%m-%d")
     filter_obj = {
@@ -353,6 +362,8 @@ def syncGCal2Notion():
         gCalStart = ""
         gCalEnd = ""
 
+        new_notion_cal_id = ""
+
         # Get the event from GCal:
         for calid in calendarDictionary.keys():
             try:
@@ -361,12 +372,14 @@ def syncGCal2Notion():
                     .get(calendarId=calendarDictionary[calid], eventId=gcal_eid)
                     .execute()
                 )
+                print(f"Event found in {calid}: {name} from {start_dt} to {end_dt}")
             except:
-                print(f"Event not found in {calid}: {name} from {start_dt} to {end_dt}")
+                # print(f"Event not found in {calid}: {name} from {start_dt} to {end_dt}")
                 x = {"status": "unconfirmed"}
 
             if x["status"] == "confirmed":
                 value = x
+                new_notion_cal_id = calid
 
         try:
             gCalStart = datetime.strptime(
@@ -387,13 +400,223 @@ def syncGCal2Notion():
             ) - timedelta(days=1)
 
         # Now we got the google calendar start and end times, update the notion start and end times if they aren't the same:
-        notion_start = gCalStart if gCalStart != start_dt else start_dt
-        notion_end = gCalEnd if gCalEnd != end_dt else end_dt
+        new_notion_start = gCalStart if gCalStart != start_dt else start_dt
+        new_notion_end = gCalEnd if gCalEnd != end_dt else end_dt
 
-    pass
+        # Bunch of if statements for updating the notion:
+        # If both start and end time are to be updated:
+        if new_notion_start and new_notion_end:
+            start = new_notion_start
+            end = new_notion_end
+            _updateNotionWithGCalStuff(event, start, end)
+        # Only start time needs to be updated
+        elif new_notion_start:
+            start = new_notion_start
+            end = end_dt
+            _updateNotionWithGCalStuff(event, start, end)
+
+        # Only end time needs to be updated
+        elif new_notion_end:
+            start = start_dt
+            end = new_notion_end
+            _updateNotionWithGCalStuff(event, start, end)
+
+        # else:
+        #     continue
+
+        # Just update the calendar the event is on:
+        update_notion_event(
+            notion,
+            event["id"],
+            {
+                Current_Calendar_Id_Notion_Name: {
+                    "rich_text": [
+                        {"text": {"content": calendarDictionary[new_notion_cal_id]}}
+                    ]
+                },
+                # Calendar_Notion_Name: {"formula": {"string": cal_id}},
+                LastUpdatedTime_Notion_Name: {
+                    "date": {"start": make_notion_datetime(datetime.now()), "end": None}
+                },
+            },
+        )
+
+
+def _updateNotionWithGCalStuff(event, start, end):
+    # 12AM datetimes so you want to enter them as dates not datetimes in Notion
+    if start.hour == 0 and start.minute == 0 and start == end:
+        update_notion_event(
+            notion,
+            event["id"],
+            {
+                Date_Notion_Name: {
+                    "date": {
+                        "start": start.strftime("%Y-%m-%d"),
+                        "end": None,
+                    }
+                },
+                LastUpdatedTime_Notion_Name: {
+                    "date": {
+                        "start": make_notion_datetime(datetime.now()),
+                        "end": None,
+                    }
+                },
+            },
+        )
+    # 12 AM datetimes so enter them as dates not datetimes.
+    elif start.hour == 0 and start.minute == 0 and end.hour == 0 and end.minute == 0:
+        update_notion_event(
+            notion,
+            event["id"],
+            {
+                Date_Notion_Name: {
+                    "date": {
+                        "start": start.strftime("%Y-%m-%d"),
+                        "end": end.strftime("%Y-%m-%d"),
+                    }
+                },
+                LastUpdatedTime_Notion_Name: {
+                    "date": {
+                        "start": make_notion_datetime(datetime.now()),
+                        "end": None,
+                    }
+                },
+            },
+        )
+
+    else:
+        update_notion_event(
+            notion,
+            event["id"],
+            {
+                Date_Notion_Name: {
+                    "date": {
+                        "start": make_notion_datetime(start),
+                        "end": make_notion_datetime(end),
+                    }
+                }
+            },
+        )
+
+
+def googleQuery():
+    time_min = (datetime.now() - timedelta(days=1)).astimezone()
+    return time_min.isoformat()
+
+
+def syncGCal2Notion():
+    """
+    Part 4: Bring events not in Notion to Notion!
+    """
+    yesterday_iso = (datetime.now() - timedelta(days=2)).astimezone().isoformat()
+    # 1. Get existing Notion IDs (using your helper)
+    notion_events = get_events_to_sync(
+        notion,
+        DATA_SOURCE_ID,
+        {
+            "and": [
+                # Only get events with a GCal ID
+                {
+                    "property": GCalEventId_Notion_Name,
+                    "rich_text": {"is_not_empty": True},
+                },
+                # ONLY get events from yesterday onwards
+                {"property": Date_Notion_Name, "date": {"on_or_after": yesterday_iso}},
+            ]
+        },
+    )
+
+    ALL_notion_gCal_Ids = set()
+    for event in notion_events:
+        try:
+            _, _, _, _, _, _, gcal_eid, _ = getEventProperties(event)
+            if gcal_eid:
+                ALL_notion_gCal_Ids.add(gcal_eid)
+        except:
+            continue
+
+    # 2. Get events from Google (Keep your existing fetch logic)
+    all_gCal_items = []
+    for el in calendarDictionary.keys():
+        x = (
+            service.events()
+            .list(
+                calendarId=calendarDictionary[el],
+                maxResults=2000,
+                timeMin=googleQuery(),
+            )
+            .execute()
+        )
+        # Add the calendar name to each item so we can use it later
+        for item in x.get("items", []):
+            item["_temp_cal_name"] = el
+            all_gCal_items.append(item)
+
+    # 3. The Loop
+    for item in all_gCal_items:
+        gcal_id = item["id"]
+
+        if gcal_id not in ALL_notion_gCal_Ids:
+            summary = item.get("summary", "Untitled Event")
+            description = item.get("description", " ")
+            cal_id_email = item["organizer"]["email"]
+            cal_name = item["_temp_cal_name"]
+
+            # --- Date Logic ---
+            if "date" in item["start"]:  # All-day event
+                start_date = item["start"]["date"]
+                # GCal all-day end dates are exclusive, so subtract 1 day for Notion
+                end_dt = datetime.strptime(item["end"]["date"], "%Y-%m-%d") - timedelta(
+                    days=1
+                )
+                end_date = end_dt.strftime("%Y-%m-%d")
+
+                # If it's a 1-day event, end is None. Otherwise, use the adjusted end.
+                notion_end = None if start_date == end_date else end_date
+                date_prop = {"start": start_date, "end": notion_end}
+
+            else:  # Regular timed event
+                # Use your make_notion_datetime helper
+                start_dt = datetime.fromisoformat(
+                    item["start"]["dateTime"].replace("Z", "+00:00")
+                )
+                end_dt = datetime.fromisoformat(
+                    item["end"]["dateTime"].replace("Z", "+00:00")
+                )
+                date_prop = {
+                    "start": make_notion_datetime(start_dt),
+                    "end": make_notion_datetime(end_dt),
+                }
+
+            # --- The Update ---
+            # Construct the properties dict exactly as your DB expects
+            props = {
+                Task_Notion_Name: {"title": [{"text": {"content": summary}}]},
+                Date_Notion_Name: {"date": date_prop},
+                LastUpdatedTime_Notion_Name: {
+                    "date": {"start": make_notion_datetime(datetime.now())}
+                },
+                ExtraInfo_Notion_Name: {
+                    "rich_text": [{"text": {"content": description}}]
+                },
+                GCalEventId_Notion_Name: {
+                    "rich_text": [{"text": {"content": gcal_id}}]
+                },
+                On_GCal_Notion_Name: {"checkbox": True},
+                Current_Calendar_Id_Notion_Name: {
+                    "rich_text": [{"text": {"content": cal_id_email}}]
+                },
+                # Calendar_Notion_Name: {"select": {"name": cal_name}},
+            }
+
+            # Use your helper!
+            create_notion_event(notion, DATA_SOURCE_ID, props)
+            print(f"Added: {summary}")
 
 
 if __name__ == "__main__":
     syncNotion2GCal()
     verifyNotionForEmptyCalendar()
     updatedNotion2GCal()
+    syncNotionGCals2Notion()
+    syncGCal2Notion()

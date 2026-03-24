@@ -30,6 +30,6 @@ def create_notion_event(notion, data_source_id, properties):
     )
 
 
-def make_notion_datetime(dt: datetime, tz_offset="-04:00"):
+def make_notion_datetime(dt: datetime):
     # Helper to format datetime for Notion
-    return dt.strftime(f"%Y-%m-%dT%H:%M:%S{tz_offset}")
+    return dt.astimezone().isoformat(timespec="seconds")
