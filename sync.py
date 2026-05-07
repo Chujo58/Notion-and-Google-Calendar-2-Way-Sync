@@ -139,7 +139,7 @@ def syncNotion2GCal():
                     Current_Calendar_Id_Notion_Name: {
                         "rich_text": [{"text": {"content": cal_id}}]
                     },
-                    Calendar_Notion_Name: {"formula": {"string": DEFAULT_CALENDAR_ID}},
+                    # Calendar_Notion_Name: {"formula": {"string": DEFAULT_CALENDAR_ID}},
                     LastUpdatedTime_Notion_Name: {
                         "date": {
                             "start": make_notion_datetime(datetime.now()),
