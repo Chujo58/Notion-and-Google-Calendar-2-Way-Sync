@@ -17,6 +17,10 @@ def get_events_to_sync(notion, data_source_id, filter_obj=None):
     return response.get("results", [])
 
 
+def query(notion, data_source_id, filter_obj=None):
+    return get_events_to_sync(notion, data_source_id, filter_obj)
+
+
 def update_notion_event(notion, page_id, properties):
     # properties: dict of property updates
     return notion.pages.update(page_id=page_id, properties=properties)

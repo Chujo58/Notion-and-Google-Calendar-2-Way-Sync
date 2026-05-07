@@ -10,6 +10,8 @@ LastUpdatedTime_Notion_Name = "Last Updated Time"  # Date
 Calendar_Notion_Name = "CalendarName"  # drop down for the calendar name?
 Current_Calendar_Id_Notion_Name = "Calendar ID"  # Text
 Delete_Notion_Name = "Done?"  # check box
+Folder_Notion_Name = "Folder"
+EventType_Notion_Name = "Nature"
 
 # Calendar dictionary for multiple calendars
 DEFAULT_CALENDAR_ID = "b3c903b1ee4cc103e02c7de57b397bd3f0afedd8077555d8242af43061729641@group.calendar.google.com"
