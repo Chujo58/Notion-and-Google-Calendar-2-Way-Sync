@@ -54,6 +54,7 @@ def parse_prompt(prompt):
     - Timestamps MUST be simple ISO 8601 strings (YYYY-MM-DDTHH:MM:SS).
     - If an end time is not required, leave as empty in "end" key.
     - Workday is from 9am to 5pm.
+    - If no time is given assume today all day so no hour and minute in the timestamp.
 
     User Prompt: """
 
@@ -73,7 +74,7 @@ def get_course_id(course_code):
         notion, COURSES_DB_ID, {"property": "Name", "title": {"contains": course_code}}
     )
 
-    return query_result[0]["id"] if query else None
+    return query_result[0]["id"] if query_result and len(query_result) > 1 else None
 
 
 def get_local_offset():
